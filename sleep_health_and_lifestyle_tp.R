@@ -1,16 +1,31 @@
 # Cargar las librerías necesarias
 library(ggplot2)
 
-# Definir rutas relativas
-archive <- "data/Sleep_health_and_lifestyle_dataset.csv"
-saved <- "data/Sleep_health_and_lifestyle_dataset_clean.csv"
+# Definir el directorio raíz
+root_dir <- "data"  # Puedes cambiar esto a cualquier nombre de directorio raíz que prefieras
+
+# Crear las rutas relativas para los archivos
+archive <- file.path(root_dir, "Sleep_health_and_lifestyle_dataset.csv")
+cleaned_file <- file.path(root_dir, "Sleep_health_and_lifestyle_dataset_clean.csv")
+ecdf_plots_dir <- file.path(root_dir, "ECDF_Plots")
+bar_plots_dir <- file.path(root_dir, "Bar_Plots")
+pie_plots_dir <- file.path(root_dir, "Pie_Plots")
+histogram_plots_dir <- file.path(root_dir, "Histogram_Plots")
+kernel_density_plots_dir <- file.path(root_dir, "Kernel_Density_Plots")
+
+# Crear los directorios si no existen
+dir.create(ecdf_plots_dir, showWarnings = FALSE)
+dir.create(bar_plots_dir, showWarnings = FALSE)
+dir.create(pie_plots_dir, showWarnings = FALSE)
+dir.create(histogram_plots_dir, showWarnings = FALSE)
+dir.create(kernel_density_plots_dir, showWarnings = FALSE)
 
 # Leer y limpiar los datos
 data <- read.csv(archive, na.strings = c("", "NA", "NaN", "None"))
 data_clean <- na.omit(data)
 
 # Guardar el archivo limpio
-write.csv(data_clean, saved, row.names = FALSE)
+write.csv(data_clean, cleaned_file, row.names = FALSE)
 cat("Archivo limpio guardado con éxito.\n")
 
 # Función para calcular métricas descriptivas para columnas numéricas
@@ -97,4 +112,142 @@ data_clean$Quality.of.Sleep <- as.numeric(data_clean$Quality.of.Sleep)
 cat("\nValores únicos de Quality.of.Sleep después de conversión:\n")
 unique(data_clean$Quality.of.Sleep)
 
-cat("\nEstructura de Quality.of.Sleep después de conversión
+cat("\nEstructura de Quality.of.Sleep después de conversión:\n")
+str(data_clean$Quality.of.Sleep)
+
+# Verifica si hay valores NA
+cat("\nNúmero de valores NA en Quality.of.Sleep:\n")
+sum(is.na(data_clean$Quality.of.Sleep))
+
+# Calcular y graficar la ECDF para Quality of Sleep
+if (sum(!is.na(data_clean$Quality.of.Sleep)) > 0) {
+  png(file.path(ecdf_plots_dir, "ECDF_Quality_of_Sleep.png"))
+  plot.ecdf(data_clean$Quality.of.Sleep, main="ECDF de Quality of Sleep",
+            xlab="Quality of Sleep", ylab="ECDF")
+  dev.off()
+  cat("Gráfico ECDF de Quality of Sleep guardado como imagen.\n")
+} else {
+  cat("Error: No hay valores válidos en Quality.of.Sleep para ECDF.\n")
+}
+
+# Calcular y graficar la ECDF para Sleep Duration
+if (length(data_clean$Sleep.Duration[!is.na(data_clean$Sleep.Duration)]) > 0) {
+  png(file.path(ecdf_plots_dir, "ECDF_Sleep_Duration.png"))
+  plot.ecdf(data_clean$Sleep.Duration, main="ECDF de Sleep Duration",
+            xlab="Sleep Duration", ylab="ECDF")
+  dev.off()
+  cat("Gráfico ECDF de Sleep Duration guardado como imagen.\n")
+} else {
+  cat("Error: No hay valores válidos en Sleep.Duration para ECDF.\n")
+}
+
+# Crear un dataframe con los intervalos y las frecuencias absolutas
+grouped_data <- data.frame(
+  Intervalo = c("(0, 10]", "(10, 15]", "(15, 20]", "(20, 25]", "(25, 30]", "(30, 35]", "(35, 40]", "(40, 45]", "(45, 50]", "(50, 55]"),
+  Frecuencia = c(10, 3, 21, 75, 215, 373, 350, 171, 52, 6)
+)
+
+# Calcular el número total de observaciones
+total_observaciones <- sum(grouped_data$Frecuencia)
+
+# Calcular las frecuencias relativas
+grouped_data$Frecuencia.Relativa <- grouped_data$Frecuencia / total_observaciones
+
+# Calcular las frecuencias acumuladas
+grouped_data$Frecuencia.Acumulada <- cumsum(grouped_data$Frecuencia.Relativa)
+
+# Extraer los límites de los intervalos
+límite_inferior <- c(0, as.numeric(gsub("\\(.*,(.*)\\]", "\\1", grouped_data$Intervalo)))
+límite_superior <- as.numeric(gsub("\\((.*),.*\\]", "\\1", grouped_data$Intervalo))
+
+# Crear un dataframe para la gráfica
+ecdf_data <- data.frame(
+  Límite.Superior = límite_superior,
+  Frecuencia.Acumulada = grouped_data$Frecuencia.Acumulada
+)
+
+# Graficar la ECDF usando ggplot2
+ecdf_plot <- ggplot(ecdf_data, aes(x = Límite.Superior, y = Frecuencia.Acumulada)) +
+  geom_step() +
+  labs(title = "ECDF para Datos Agrupados",
+       x = "Intervalos",
+       y = "Frecuencia Acumulada") +
+  theme_minimal()
+ggsave(file.path(ecdf_plots_dir, "ECDF_Datos_Agrupados.png"), plot = ecdf_plot)
+
+# Crear gráficos de barras para variables categóricas
+# Frecuencia absoluta y relativa de Gender
+gender_freq <- table(data_clean$Gender)
+gender_freq_df <- as.data.frame(gender_freq)
+
+# Graficar frecuencia absoluta de Gender
+gender_bar_plot <- ggplot(gender_freq_df, aes(x = Var1, y = Freq)) +
+  geom_bar(stat = "identity") +
+  labs(title = "Frecuencia Absoluta de Gender",
+       x = "Gender",
+       y = "Frecuencia Absoluta") +
+  theme_minimal()
+ggsave(file.path(bar_plots_dir, "Frecuencia_Absoluta_Gender.png"), plot = gender_bar_plot)
+
+# Graficar frecuencia relativa de Gender
+gender_bar_plot_rel <- ggplot(gender_freq_df, aes(x = Var1, y = Freq / sum(Freq))) +
+  geom_bar(stat = "identity") +
+  labs(title = "Frecuencia Relativa de Gender",
+       x = "Gender",
+       y = "Frecuencia Relativa") +
+  theme_minimal()
+ggsave(file.path(bar_plots_dir, "Frecuencia_Relativa_Gender.png"), plot = gender_bar_plot_rel)
+
+# Gráficos de pastel para variables categóricas
+# Frecuencia absoluta de Sleep Disorder
+sleep_disorder_freq <- table(data_clean$Sleep.Disorder)
+sleep_disorder_freq_df <- as.data.frame(sleep_disorder_freq)
+
+# Graficar pie plot para Sleep Disorder
+sleep_disorder_pie_plot <- ggplot(sleep_disorder_freq_df, aes(x = "", y = Freq, fill = Var1)) +
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar(theta = "y") +
+  labs(title = "Distribución de Sleep Disorder") +
+  theme_void()
+ggsave(file.path(pie_plots_dir, "Distribucion_Sleep_Disorder.png"), plot = sleep_disorder_pie_plot)
+
+# Gráficos de histogramas para variables numéricas
+# Histograma de Sleep Duration
+sleep_duration_hist <- ggplot(data_clean, aes(x = Sleep.Duration)) +
+  geom_histogram(binwidth = 1, fill = "blue", color = "black") +
+  labs(title = "Histograma de Sleep Duration",
+       x = "Sleep Duration",
+       y = "Frecuencia") +
+  theme_minimal()
+ggsave(file.path(histogram_plots_dir, "Histograma_Sleep_Duration.png"), plot = sleep_duration_hist)
+
+# Histograma de Age
+age_hist <- ggplot(data_clean, aes(x = Age)) +
+  geom_histogram(binwidth = 5, fill = "green", color = "black") +
+  labs(title = "Histograma de Age",
+       x = "Age",
+       y = "Frecuencia") +
+  theme_minimal()
+ggsave(file.path(histogram_plots_dir, "Histograma_Age.png"), plot = age_hist)
+
+# Graficar densidades kernel para Sleep Duration
+sleep_duration_density_plot <- ggplot(data_clean, aes(x = Sleep.Duration)) +
+  geom_density(fill = "blue", alpha = 0.5) +
+  labs(title = "Densidad Kernel de Sleep Duration",
+       x = "Sleep Duration",
+       y = "Densidad") +
+  theme_minimal()
+ggsave(file.path(kernel_density_plots_dir, "Densidad_Kernel_Sleep_Duration.png"), plot = sleep_duration_density_plot)
+
+# Graficar densidades kernel para Age
+age_density_plot <- ggplot(data_clean, aes(x = Age)) +
+  geom_density(fill = "green", alpha = 0.5) +
+  labs(title = "Densidad Kernel de Age",
+       x = "Age",
+       y = "Densidad") +
+  theme_minimal()
+ggsave(file.path(kernel_density_plots_dir, "Densidad_Kernel_Age.png"), plot = age_density_plot)
+
+# Mensaje de finalización
+cat("\nTodas las gráficas han sido generadas y guardadas exitosamente.\n")
+
